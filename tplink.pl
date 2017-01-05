@@ -6,8 +6,6 @@
 
 use strict;
 use warnings;
-use Digest::MD5;
-use LWP;
 use LWP::UserAgent;
 use MIME::Base64;
 use URI::Escape;
@@ -25,7 +23,7 @@ my $auth_cookie;
 sub Dbg {
 	if ($dbg == 1) {
 		my ($text) = @_;
-		print "--> $text\n";
+#		print "--> $text\n";
 	}
 }
 
@@ -34,11 +32,8 @@ sub Dbg {
 sub build_auth_cookie {
 	my ($u, $p) = @_;
 
-	my $md5 = Digest::MD5->new;
-	my $hashed_password = $md5->add($p);
-	#my $value = encode_base64($u . ":" . $hashed_password);
 	my $value = encode_base64($u . ":" . $p, "");
-	return 'Authorization=Basic%20' . uri_escape($value);
+	$auth_cookie = 'Authorization=Basic%20' . uri_escape($value);
 }
 
 # 1 - path
@@ -111,6 +106,8 @@ sub get_wireless_stats_page_5g {
 sub extract_js_array {
 	my ($page, $name, $aref) = @_;
 
+	@$aref = ();
+
 	if ($page->content() =~ /$name\s+=\s+new\s+Array\(\n(.+?)\)/s) {
 		my @array = split(/\n/, $1);
 		foreach (@array) {
@@ -154,34 +151,31 @@ EOF
 	exit 0;
 }
 
-$auth_cookie = build_auth_cookie($user, $pass);
+build_auth_cookie($user, $pass);
+
+my @values;
 
 print "multigraph wireless_channel\n";
 
 my $status_page = get_status_page();
-my @status;
-extract_js_array($status_page, 'wlanPara', \@status);
-my $channel = ($status[2] == 15) ? $status[9] : $status[2];
+extract_js_array($status_page, 'wlanPara', \@values);
+my $channel = ($values[2] == 15) ? $values[9] : $values[2];
 print "channel.value " . $channel . "\n";
 
-my @status_5g;
-extract_js_array($status_page, 'wlan5GPara', \@status_5g);
-$channel = ($status_5g[2] == 15) ? $status_5g[9] : $status_5g[2];
+extract_js_array($status_page, 'wlan5GPara', \@values);
+$channel = ($values[2] == 15) ? $values[9] : $values[2];
 print "channel5.value " . $channel . "\n";
 
 print "multigraph connected_clients\n";
 
 my $wireless_stats_page = get_wireless_stats_page();
-my @wireless_clients;
-extract_js_array($wireless_stats_page, 'hostList', \@wireless_clients);
-print "clients.value " . (scalar(@wireless_clients) - 1) . "\n";
+extract_js_array($wireless_stats_page, 'hostList', \@values);
+print "clients.value " . (scalar(@values) - 1) . "\n";
 
 my $wireless_stats_page_5g = get_wireless_stats_page_5g();
-my @wireless_clients_5g;
-extract_js_array($wireless_stats_page_5g, 'hostList', \@wireless_clients_5g);
-print "clients5.value " . (scalar(@wireless_clients_5g) - 1) . "\n";
+extract_js_array($wireless_stats_page_5g, 'hostList', \@values);
+print "clients5.value " . (scalar(@values) - 1) . "\n";
 
 print "multigraph uptime\n";
-@status = ();
-extract_js_array($status_page, 'statusPara', \@status);
-print "uptime.value " . $status[5] / 86400.0 . "\n";
+extract_js_array($status_page, 'statusPara', \@values);
+print "uptime.value " . $values[5] / 86400.0 . "\n";
